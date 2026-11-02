@@ -2,55 +2,20 @@
 
 Graduation Project – SH.A. Academy
 
-Calma is a mental health support platform available as a **mobile app** (patients) and a **web dashboard** (therapists & admins). It combines an AI chatbot, licensed doctors, and multimodal emotion analysis to make psychological support easier to access.
+Calma is a mental health support platform available as a **mobile app** (patients) and a **web dashboard** (doctors & admins). It combines an AI chatbot that understands text and **voice messages** (including the emotion in the patient's tone of voice), licensed doctors, mood tracking, and a supportive community.
 
 ## ✨ Key Features
 
-- Two-role system (Patient / Doctor) plus Admin, with token-based auth and admin approval for doctors
-- AI chatbot in Modern Standard & Egyptian Arabic (PHQ-9 / GAD-7 based)
-- **Voice messages:** the patient talks to the chatbot, and the system transcribes the speech and analyzes the **tone of voice** (happy, sad, angry, anxious, neutral)
-- Confidential Private Venting mode (no data stored)
-- Crisis Safety Net: detects high-risk statements, shows hotlines, alerts the doctor
-- Facial emotion detection (DeepFace/OpenCV) and voice tone analysis (Whisper/Librosa)
-- Multimodal Mood Index: `0.5 × Text + 0.3 × Vision + 0.2 × Voice`
-- AI report handover + electronic prescription
-- Prescription OCR + pill reminders + nearby pharmacy finder
-- Online & in-person booking with Paymob/Fawry payments and scheduled reminders
-- Mood tracker, daily challenges, weekly status summary
+- Three roles (Patient / Doctor / Admin) with token-based authentication; every doctor is reviewed and approved by an admin before they can log in
+- AI chatbot in Modern Standard & Egyptian Arabic, by **text or voice message**
+- **Tone-of-voice analysis:** a voice message is transcribed, and the emotion in the voice is detected (happy, sad, angry, anxious, neutral)
+- Crisis flag: the AI marks high-risk messages (`is_danger`) so the app can react
+- Mood tracker (1 to 5) and daily challenges (breathing, walking, reading)
+- Educational content: articles organized by category (anxiety, sleep, depression) and calming audio
 - **Community posts:** patients and doctors can write and read posts
-- **Doctor profiles:** photo, short bio (max 300 characters), phone and clinic link
 - **Patient profile:** date of birth (must be older than 16), gender, marital status
+- **Doctor profile:** photo, short bio (max 300 characters), specialization, phone and clinic link
 - Forgot password with a 6-digit code sent by email
-- Interactive 3D brain model (Three.js), calming sounds, personalized articles
-
-## ✅ Backend status
-
-What the Laravel API already does today, and what is still planned.
-
-| Area | Status |
-|---|---|
-| Register / login / logout, roles (patient, doctor, admin), Sanctum tokens | ✅ Done |
-| Admin approves or rejects doctors | ✅ Done |
-| Patient profile (age check > 16, gender, marital status) | ✅ Done |
-| Doctor profile (phone, clinic link, photo, bio ≤ 300, ID card, certificate) | ✅ Done |
-| Text chat with the AI service (`is_danger` flag saved) | ✅ Done (needs `ai-services`) |
-| Voice messages with transcript + tone-of-voice emotion | ✅ Done (needs `ai-services/voice`) |
-| Mood logs, daily challenges | ✅ Done |
-| Articles, categories, audios | ✅ Done |
-| Community posts (patients and doctors) | ✅ Done |
-| Forgot / reset password by email code | ✅ Done |
-| Private Venting mode, crisis hotlines + doctor alerts | ⏳ Planned |
-| Multimodal Mood Index, weekly summaries | ⏳ Planned (`data-analysis/`) |
-| AI report handover, electronic prescription, OCR, pill reminders | ⏳ Planned |
-| Booking, payments (Paymob/Fawry), notifications (FCM), pharmacy finder | ⏳ Planned |
-
-## 🗄️ Database
-
-14 tables. Full SQL: [`docs/database/schema.sql`](docs/database/schema.sql) · Mapping: [`docs/database/Calma_schema_mapping.svg`](docs/database/Calma_schema_mapping.svg)
-
-![Calma ERD](docs/database/erd_light_mode.png)
-
-Dark version, SVG and PDF are in [`docs/database/`](docs/database/).
 
 ## 🏗️ Tech Stack
 
@@ -59,13 +24,9 @@ Dark version, SVG and PDF are in [`docs/database/`](docs/database/).
 | Mobile App | Flutter |
 | Web Dashboard | React, TailwindCSS |
 | Backend | PHP / Laravel, Sanctum (API tokens), MySQL |
-| AI Services | Python, FastAPI, DeepFace, OpenCV, Whisper, Librosa, EasyOCR |
+| AI Services | Python, FastAPI, Whisper (speech-to-text), Librosa (tone of voice) |
 | LLM | OpenAI GPT-4o or Llama 3, LangChain |
-| Scheduling | Laravel Scheduler + Queues |
-| 3D | Three.js (.glb) |
-| Notifications | Firebase Cloud Messaging |
-| Payments | Paymob / Fawry |
-| Maps | Google Maps Places API |
+| Email | Laravel Mail (SMTP) |
 
 ## 📁 Repository Structure
 
@@ -74,13 +35,72 @@ Dark version, SVG and PDF are in [`docs/database/`](docs/database/).
 | `backend/` | Laravel REST API |
 | `mobile-app/` | Flutter patient app |
 | `frontend/` | React dashboard for doctors/admins |
-| `ai-services/` | Python AI microservices |
-| `data-analysis/` | Mood Index, weekly summaries, and progress charts |
+| `ai-services/` | Python AI microservices (chatbot, voice, crisis classifier) |
+| `data-analysis/` | Mood data analysis and progress charts |
 | `testing/` | Test cases, bug reports, and test results |
-| `docs/` | Architecture, API endpoints, ERD, SQL schema, AI contract |
+| `docs/` | Architecture, API endpoints, ERD, SQL schema |
 | `chapters/` | Graduation project documentation chapters |
 | `ui-ux-frontend-mobile/` | UI/UX designs for the web and mobile apps |
-| `assets/` | 3D models and audio files |
+| `assets/` | Audio files |
+
+## 🗄️ Database
+
+MySQL database `calma`, 14 tables:
+
+| Table | Purpose |
+|---|---|
+| `users` | Every account: `first_name`, `last_name`, `email`, `password`, `role` (patient, doctor, admin) |
+| `patients` | Patient data: `dob`, `gender` (male, female), `marital_status` (single, married) |
+| `doctor_profiles` | Doctor data: `specialization`, `dob`, `phone`, `clinic_url`, `photo`, `bio`, ID card, certificate, `status` (pending, active, rejected) |
+| `chat_messages` | Chat with the bot: `message`, `reply`, `is_danger`, and for voice messages `audio_path`, `emotion`, `emotion_score` |
+| `mood_logs` | Mood score 1 to 5, optionally linked to a challenge |
+| `challenges` | Daily challenges (breathing, walking, reading) |
+| `patient_challenges` | Which patient completed which challenge, and when |
+| `categories`, `articles`, `article_category` | Articles and their categories (many-to-many) |
+| `audios` | Calming audio files |
+| `posts` | Community posts written by patients and doctors |
+| `password_reset_tokens`, `personal_access_tokens` | Laravel tables: reset codes and login tokens |
+
+Relationships: a user has one patient profile or one doctor profile; a patient has many chat messages, mood logs and completed challenges; a user has many posts; an article has many categories.
+
+## 🔌 API Overview
+
+All paths start with `/api`. Send `Accept: application/json`, and `Authorization: Bearer <token>` after login.
+
+| Area | Endpoints | Who |
+|---|---|---|
+| Auth | `POST /auth/register`, `POST /auth/login`, `GET /auth/me`, `POST /auth/logout` | Public / logged-in |
+| Password | `POST /auth/forgot-password`, `POST /auth/reset-password` | Public |
+| Doctor approval | `GET /admin/doctors`, `POST /admin/doctors/{id}/approve`, `POST /admin/doctors/{id}/reject` | Admin |
+| Content management | `POST` / `DELETE` on `/admin/categories`, `/admin/articles`, `/admin/audios` | Admin |
+| Content | `GET /categories`, `GET /articles`, `GET /articles/{id}`, `GET /audios`, `GET /audios/{id}` | Any logged-in user |
+| Chat | `GET /patient/chat`, `POST /patient/chat`, `POST /patient/chat/voice`, `GET /patient/chat/{id}/audio` | Patient |
+| Mood | `GET /patient/mood-logs`, `POST /patient/mood-logs` | Patient |
+| Challenges | `GET /patient/challenges`, `POST /patient/challenges/{id}/complete` | Patient |
+| Posts | `GET /posts`, `GET /posts/{id}`, `POST /posts` | Patient or doctor |
+
+### Business rules
+- A patient must be **older than 16 years** at registration.
+- A doctor's bio is **at most 300 characters**. Photo, phone, ID card and certificate are required.
+- A doctor cannot log in until an admin approves the account.
+- The reset code is 6 digits, valid for 15 minutes, works once, and 5 wrong guesses cancel it.
+- The ID card, certificate and voice recordings are private files; only the doctor photo, article covers and audio files are public.
+
+## 🤖 AI Services Contract
+
+The backend calls the Python services (base URL in `CHATBOT_URL`). If the AI is down, the patient's message is still saved and a fallback reply is returned.
+
+**`POST /chat`** (JSON)
+```json
+{ "message": "...", "history": [ { "role": "user", "content": "..." } ] }
+```
+returns `{ "reply": "...", "is_danger": false }`
+
+**`POST /voice`** (multipart: `audio` file + `history` as a JSON string) returns
+```json
+{ "transcript": "...", "reply": "...", "is_danger": false, "emotion": "sad", "emotion_score": 0.87 }
+```
+`emotion` is one of `happy`, `sad`, `angry`, `anxious`, `neutral`. It is an estimate from the voice, not a medical diagnosis.
 
 ## 🚀 Getting Started
 
@@ -88,6 +108,7 @@ Dark version, SVG and PDF are in [`docs/database/`](docs/database/).
 PHP 8.2+, Composer, MySQL (XAMPP is fine), Node.js 18+, Flutter SDK, Python 3.10+
 
 ### Backend
+Create an empty MySQL database named `calma` first (for example from phpMyAdmin), then:
 ```bash
 cd backend
 composer install
@@ -96,9 +117,8 @@ php artisan key:generate
 php artisan migrate --seed
 php artisan storage:link
 php artisan serve
-php artisan test
 ```
-Create the database `calma` first. Details and first-time setup: [`backend/README.md`](backend/README.md).
+Run the tests with `php artisan test`.
 
 ### Frontend (React)
 ```bash
@@ -120,21 +140,13 @@ cd ai-services
 python -m venv venv
 source venv/bin/activate   # Windows: venv\Scripts\activate
 pip install -r requirements.txt
-# Each service (chatbot, vision, voice, ocr, crisis-classifier) has its own
+# Each service (chatbot, voice, crisis-classifier) has its own
 # entry point - see the README inside each folder.
 ```
-The backend talks to it as described in [`docs/ai-services-contract.md`](docs/ai-services-contract.md).
 
 ## 🔐 Environment Variables
 
-Copy `.env.example` to `.env` and fill in: DB credentials, OpenAI key, Firebase, Paymob/Fawry, Google Maps, mail. **Never commit real keys.**
-
-## 📚 Documentation
-
-- API: [`docs/api-endpoints.md`](docs/api-endpoints.md), OpenAPI and Postman in [`docs/api/`](docs/api/)
-- Database: [`docs/database/`](docs/database/)
-- AI services contract: [`docs/ai-services-contract.md`](docs/ai-services-contract.md)
-- Changes: [`docs/CHANGELOG.md`](docs/CHANGELOG.md)
+Copy `.env.example` to `.env` and fill in: database credentials, admin account, AI service URL and key, OpenAI key, mail settings. **Never commit real keys.**
 
 ## 🗂️ Detailed Project Structure
 
@@ -143,13 +155,8 @@ Calma/
 ├── docs/                              # Technical documentation
 │   ├── architecture.md
 │   ├── api-endpoints.md
-│   ├── ai-services-contract.md
-│   ├── CHANGELOG.md
-│   ├── api/                           # openapi.yaml + Postman collection
 │   └── database/
-│       ├── schema.sql                 # Database schema
-│       ├── Calma_schema_mapping.svg   # Schema mapping
-│       └── erd_*.png / .svg / .pdf    # ERD (light and dark)
+│       └── schema.sql                 # Database schema
 ├── backend/                           # Laravel REST API
 │   ├── app/
 │   │   ├── Http/Controllers/          # Auth, Admin, Community, Content, Patient
@@ -159,24 +166,21 @@ Calma/
 │   │   └── Services/
 │   ├── config/
 │   ├── database/                      # migrations, seeders, factories
-│   ├── resources/views/emails/
 │   ├── routes/
 │   │   └── api.php                    # API endpoints
 │   └── tests/
 ├── frontend/                          # React + TailwindCSS web dashboard
 ├── mobile-app/                        # Flutter patient application
 ├── ai-services/                       # Python AI microservices
-│   ├── chatbot/                       # LLM (PHQ-9 / GAD-7)
-│   ├── vision/                        # Facial emotion detection (DeepFace/OpenCV)
+│   ├── chatbot/                       # LLM chatbot
 │   ├── voice/                         # Speech-to-text + tone analysis (Whisper/Librosa)
-│   ├── ocr/                           # Prescription OCR
-│   ├── crisis-classifier/             # Crisis Safety Net
+│   ├── crisis-classifier/             # High-risk message detection
 │   └── requirements.txt
-├── data-analysis/                     # Mood Index & weekly progress summaries
+├── data-analysis/                     # Mood data analysis & progress charts
 ├── testing/                           # Test cases & bug reports
 ├── chapters/                          # Graduation project documentation chapters
 ├── ui-ux-frontend-mobile/             # UI/UX designs
-├── assets/                            # 3D brain models (.glb) & audio files
+├── assets/                            # Audio files
 ├── .env.example                       # Environment variables template
 └── README.md                          # Main project documentation
 ```
