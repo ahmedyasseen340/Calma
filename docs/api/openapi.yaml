@@ -1,0 +1,1907 @@
+openapi: 3.0.3
+info:
+  title: Psych Support API
+  version: 1.0.0
+  description: 'Laravel backend for the psychological support platform.
+
+
+    Send `Accept: application/json` and `Authorization: Bearer <token>` on every request.
+    Validation errors return 422 with an `errors` object.'
+servers:
+- url: http://localhost:8000
+  description: Local
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+  schemas:
+    User:
+      type: object
+      properties:
+        id:
+          type: integer
+        first_name:
+          type: string
+        last_name:
+          type: string
+        email:
+          type: string
+        role:
+          type: string
+          enum:
+          - patient
+          - doctor
+          - admin
+        created_at:
+          type: string
+          format: date-time
+        patient:
+          $ref: '#/components/schemas/Patient'
+        doctor_profile:
+          $ref: '#/components/schemas/DoctorProfile'
+    DoctorProfile:
+      type: object
+      properties:
+        id:
+          type: integer
+        user_id:
+          type: integer
+        specialization:
+          type: string
+        dob:
+          type: string
+          format: date
+        status:
+          type: string
+          enum:
+          - pending
+          - active
+          - rejected
+        user:
+          $ref: '#/components/schemas/User'
+        phone:
+          type: string
+        clinic_url:
+          type: string
+          nullable: true
+        photo_url:
+          type: string
+          nullable: true
+          description: Public URL of the profile picture
+        bio:
+          type: string
+          nullable: true
+          maxLength: 300
+    ChatMessage:
+      type: object
+      properties:
+        id:
+          type: integer
+        patient_id:
+          type: integer
+        message:
+          type: string
+          description: 'For voice messages: the transcript of what was said (or a
+            placeholder if the AI was unavailable).'
+        reply:
+          type: string
+          nullable: true
+        is_danger:
+          type: boolean
+        created_at:
+          type: string
+          format: date-time
+        has_audio:
+          type: boolean
+          description: true for voice messages
+        emotion:
+          type: string
+          nullable: true
+          enum:
+          - happy
+          - sad
+          - angry
+          - anxious
+          - neutral
+          description: Detected from the tone of voice (voice messages only). An estimate,
+            not a diagnosis.
+        emotion_score:
+          type: number
+          nullable: true
+          minimum: 0
+          maximum: 1
+          description: Model confidence
+    MoodLog:
+      type: object
+      properties:
+        id:
+          type: integer
+        patient_id:
+          type: integer
+        challenge_id:
+          type: integer
+          nullable: true
+        mood_score:
+          type: integer
+          minimum: 1
+          maximum: 5
+        logged_at:
+          type: string
+          format: date-time
+    Challenge:
+      type: object
+      properties:
+        id:
+          type: integer
+        text:
+          type: string
+        type:
+          type: string
+          enum:
+          - breathing
+          - walking
+          - reading
+    Category:
+      type: object
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
+    Article:
+      type: object
+      properties:
+        id:
+          type: integer
+        title:
+          type: string
+        summary:
+          type: string
+        url:
+          type: string
+        cover:
+          type: string
+          nullable: true
+        cover_url:
+          type: string
+          nullable: true
+        categories:
+          type: array
+          items:
+            $ref: '#/components/schemas/Category'
+    Audio:
+      type: object
+      properties:
+        id:
+          type: integer
+        title:
+          type: string
+        file_path:
+          type: string
+        url:
+          type: string
+    Patient:
+      type: object
+      properties:
+        id:
+          type: integer
+        user_id:
+          type: integer
+        dob:
+          type: string
+          format: date
+        age:
+          type: integer
+          readOnly: true
+          description: Calculated from dob
+        gender:
+          type: string
+          enum:
+          - male
+          - female
+        marital_status:
+          type: string
+          enum:
+          - single
+          - married
+    PostAuthor:
+      type: object
+      properties:
+        id:
+          type: integer
+        first_name:
+          type: string
+        last_name:
+          type: string
+        role:
+          type: string
+          enum:
+          - patient
+          - doctor
+        doctor_profile:
+          nullable: true
+          type: object
+          description: Only for doctors
+          properties:
+            id:
+              type: integer
+            user_id:
+              type: integer
+            specialization:
+              type: string
+            phone:
+              type: string
+            clinic_url:
+              type: string
+              nullable: true
+            photo_url:
+              type: string
+              nullable: true
+            bio:
+              type: string
+              nullable: true
+    Post:
+      type: object
+      properties:
+        id:
+          type: integer
+        user_id:
+          type: integer
+        content:
+          type: string
+        created_at:
+          type: string
+          format: date-time
+        user:
+          $ref: '#/components/schemas/PostAuthor'
+paths:
+  /api/auth/register:
+    post:
+      tags:
+      - Auth
+      summary: Register a patient or a doctor
+      responses:
+        '201':
+          description: 'Patient: user + token. Doctor: user only (status pending).'
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                  user:
+                    $ref: '#/components/schemas/User'
+                  token:
+                    type: string
+        '401':
+          description: Unauthenticated
+        '403':
+          description: Wrong role
+        '422':
+          description: Validation error
+      description: Patients send JSON (dob must be older than 16 years, plus gender
+        and marital_status). Doctors send multipart/form-data with dob, phone, photo,
+        the ID card and certificate images; clinic_url and bio (max 300 characters)
+        are optional.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                first_name:
+                  type: string
+                last_name:
+                  type: string
+                email:
+                  type: string
+                  format: email
+                password:
+                  type: string
+                  minLength: 8
+                password_confirmation:
+                  type: string
+                role:
+                  type: string
+                  enum:
+                  - patient
+                dob:
+                  type: string
+                  format: date
+                  description: Must be more than 16 years ago
+                gender:
+                  type: string
+                  enum:
+                  - male
+                  - female
+                marital_status:
+                  type: string
+                  enum:
+                  - single
+                  - married
+              required:
+              - first_name
+              - last_name
+              - email
+              - password
+              - password_confirmation
+              - role
+              - dob
+              - gender
+              - marital_status
+            example:
+              first_name: Ahmed
+              last_name: Patient
+              email: a@a.com
+              password: password123
+              password_confirmation: password123
+              role: patient
+              dob: '2000-05-20'
+              gender: male
+              marital_status: single
+          multipart/form-data:
+            schema:
+              type: object
+              required:
+              - first_name
+              - last_name
+              - email
+              - password
+              - password_confirmation
+              - role
+              - specialization
+              - dob
+              - id_card_img
+              - certificate_img
+              - phone
+              - photo
+              properties:
+                first_name:
+                  type: string
+                last_name:
+                  type: string
+                email:
+                  type: string
+                password:
+                  type: string
+                password_confirmation:
+                  type: string
+                role:
+                  type: string
+                  enum:
+                  - doctor
+                specialization:
+                  type: string
+                dob:
+                  type: string
+                  format: date
+                id_card_img:
+                  type: string
+                  format: binary
+                certificate_img:
+                  type: string
+                  format: binary
+                phone:
+                  type: string
+                  pattern: ^\+?[0-9]{8,15}$
+                  description: 8 to 15 digits, may start with +
+                clinic_url:
+                  type: string
+                  format: uri
+                  description: Optional link to the clinic
+                photo:
+                  type: string
+                  format: binary
+                  description: Profile picture (image, max 4 MB)
+                bio:
+                  type: string
+                  maxLength: 300
+                  description: Optional, max 300 characters
+      security: []
+  /api/auth/login:
+    post:
+      tags:
+      - Auth
+      summary: Login
+      responses:
+        '200':
+          description: User + token
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  user:
+                    $ref: '#/components/schemas/User'
+                  token:
+                    type: string
+        '401':
+          description: Unauthenticated
+        '403':
+          description: Doctor is pending or rejected
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                  status:
+                    type: string
+                    enum:
+                    - pending
+                    - rejected
+                  can_resubmit:
+                    type: boolean
+        '422':
+          description: Validation error
+      description: '403 for doctors that are not approved: {message, status: ''pending''}
+        or {message, status: ''rejected'', can_resubmit: true} (show a ''register
+        my data again'' button). Rate limited to 10 per minute.'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                email:
+                  type: string
+                password:
+                  type: string
+            example:
+              email: a@a.com
+              password: password123
+      security: []
+  /api/auth/me:
+    get:
+      tags:
+      - Auth
+      summary: Current user
+      responses:
+        '200':
+          description: User
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  user:
+                    $ref: '#/components/schemas/User'
+        '401':
+          description: Unauthenticated
+        '403':
+          description: Wrong role
+        '422':
+          description: Validation error
+      security:
+      - bearerAuth: []
+  /api/auth/logout:
+    post:
+      tags:
+      - Auth
+      summary: Logout (revokes the current token)
+      responses:
+        '200':
+          description: Done
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+        '401':
+          description: Unauthenticated
+        '403':
+          description: Wrong role
+        '422':
+          description: Validation error
+      security:
+      - bearerAuth: []
+  /api/admin/doctors:
+    get:
+      tags:
+      - Admin
+      summary: List doctor profiles
+      responses:
+        '200':
+          description: Paginated doctors
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  current_page:
+                    type: integer
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/DoctorProfile'
+                  per_page:
+                    type: integer
+                  total:
+                    type: integer
+                  last_page:
+                    type: integer
+        '401':
+          description: Unauthenticated
+        '403':
+          description: Wrong role
+        '422':
+          description: Validation error
+      parameters:
+      - name: status
+        in: query
+        required: false
+        schema:
+          type: string
+          enum:
+          - pending
+          - active
+          - rejected
+        description: ''
+      security:
+      - bearerAuth: []
+  /api/admin/doctors/{doctor}/approve:
+    post:
+      tags:
+      - Admin
+      summary: Approve a doctor (status=active)
+      responses:
+        '200':
+          description: Updated
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                  doctor:
+                    $ref: '#/components/schemas/DoctorProfile'
+        '401':
+          description: Unauthenticated
+        '403':
+          description: Wrong role
+        '422':
+          description: Validation error
+      parameters:
+      - name: doctor
+        in: path
+        required: true
+        schema:
+          type: integer
+      security:
+      - bearerAuth: []
+  /api/admin/doctors/{doctor}/reject:
+    post:
+      tags:
+      - Admin
+      summary: Reject a doctor (status=rejected)
+      responses:
+        '200':
+          description: Updated
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                  doctor:
+                    $ref: '#/components/schemas/DoctorProfile'
+        '401':
+          description: Unauthenticated
+        '403':
+          description: Wrong role
+        '422':
+          description: Validation error
+      parameters:
+      - name: doctor
+        in: path
+        required: true
+        schema:
+          type: integer
+      security:
+      - bearerAuth: []
+  /api/admin/categories:
+    post:
+      tags:
+      - 'Admin: content'
+      summary: Create category
+      responses:
+        '201':
+          description: Created
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  category:
+                    $ref: '#/components/schemas/Category'
+        '401':
+          description: Unauthenticated
+        '403':
+          description: Wrong role
+        '422':
+          description: Validation error
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                name:
+                  type: string
+            example:
+              name: anxiety
+      security:
+      - bearerAuth: []
+  /api/admin/categories/{category}:
+    post:
+      tags:
+      - 'Admin: content'
+      summary: Update category
+      responses:
+        '200':
+          description: Updated
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  category:
+                    $ref: '#/components/schemas/Category'
+        '401':
+          description: Unauthenticated
+        '403':
+          description: Wrong role
+        '422':
+          description: Validation error
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                name:
+                  type: string
+      parameters:
+      - name: category
+        in: path
+        required: true
+        schema:
+          type: integer
+      security:
+      - bearerAuth: []
+    delete:
+      tags:
+      - 'Admin: content'
+      summary: Delete category
+      responses:
+        '200':
+          description: Deleted
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+        '401':
+          description: Unauthenticated
+        '403':
+          description: Wrong role
+        '422':
+          description: Validation error
+      parameters:
+      - name: category
+        in: path
+        required: true
+        schema:
+          type: integer
+      security:
+      - bearerAuth: []
+  /api/admin/articles:
+    post:
+      tags:
+      - 'Admin: content'
+      summary: Create article
+      responses:
+        '201':
+          description: Created
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  article:
+                    $ref: '#/components/schemas/Article'
+        '401':
+          description: Unauthenticated
+        '403':
+          description: Wrong role
+        '422':
+          description: Validation error
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              properties:
+                title:
+                  type: string
+                summary:
+                  type: string
+                url:
+                  type: string
+                  format: uri
+                cover:
+                  type: string
+                  format: binary
+                category_ids[]:
+                  type: array
+                  items:
+                    type: integer
+              required:
+              - title
+              - summary
+              - url
+      security:
+      - bearerAuth: []
+  /api/admin/articles/{article}:
+    post:
+      tags:
+      - 'Admin: content'
+      summary: Update article (POST so uploads work)
+      responses:
+        '200':
+          description: Updated
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  article:
+                    $ref: '#/components/schemas/Article'
+        '401':
+          description: Unauthenticated
+        '403':
+          description: Wrong role
+        '422':
+          description: Validation error
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              properties:
+                title:
+                  type: string
+                summary:
+                  type: string
+                url:
+                  type: string
+                cover:
+                  type: string
+                  format: binary
+                category_ids[]:
+                  type: array
+                  items:
+                    type: integer
+      parameters:
+      - name: article
+        in: path
+        required: true
+        schema:
+          type: integer
+      security:
+      - bearerAuth: []
+    delete:
+      tags:
+      - 'Admin: content'
+      summary: Delete article
+      responses:
+        '200':
+          description: Deleted
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+        '401':
+          description: Unauthenticated
+        '403':
+          description: Wrong role
+        '422':
+          description: Validation error
+      parameters:
+      - name: article
+        in: path
+        required: true
+        schema:
+          type: integer
+      security:
+      - bearerAuth: []
+  /api/admin/audios:
+    post:
+      tags:
+      - 'Admin: content'
+      summary: Upload audio
+      responses:
+        '201':
+          description: Created
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  audio:
+                    $ref: '#/components/schemas/Audio'
+        '401':
+          description: Unauthenticated
+        '403':
+          description: Wrong role
+        '422':
+          description: Validation error
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              properties:
+                title:
+                  type: string
+                file:
+                  type: string
+                  format: binary
+                  description: mp3/wav/m4a/aac/ogg, max 20MB
+              required:
+              - title
+              - file
+      security:
+      - bearerAuth: []
+  /api/admin/audios/{audio}:
+    post:
+      tags:
+      - 'Admin: content'
+      summary: Update audio
+      responses:
+        '200':
+          description: Updated
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  audio:
+                    $ref: '#/components/schemas/Audio'
+        '401':
+          description: Unauthenticated
+        '403':
+          description: Wrong role
+        '422':
+          description: Validation error
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              properties:
+                title:
+                  type: string
+                file:
+                  type: string
+                  format: binary
+      parameters:
+      - name: audio
+        in: path
+        required: true
+        schema:
+          type: integer
+      security:
+      - bearerAuth: []
+    delete:
+      tags:
+      - 'Admin: content'
+      summary: Delete audio
+      responses:
+        '200':
+          description: Deleted
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+        '401':
+          description: Unauthenticated
+        '403':
+          description: Wrong role
+        '422':
+          description: Validation error
+      parameters:
+      - name: audio
+        in: path
+        required: true
+        schema:
+          type: integer
+      security:
+      - bearerAuth: []
+  /api/categories:
+    get:
+      tags:
+      - Content
+      summary: List categories
+      responses:
+        '200':
+          description: Categories
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  categories:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Category'
+        '401':
+          description: Unauthenticated
+        '403':
+          description: Wrong role
+        '422':
+          description: Validation error
+      security:
+      - bearerAuth: []
+  /api/articles:
+    get:
+      tags:
+      - Content
+      summary: List articles (paginated)
+      responses:
+        '200':
+          description: Articles
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  current_page:
+                    type: integer
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Article'
+                  per_page:
+                    type: integer
+                  total:
+                    type: integer
+                  last_page:
+                    type: integer
+        '401':
+          description: Unauthenticated
+        '403':
+          description: Wrong role
+        '422':
+          description: Validation error
+      parameters:
+      - name: category_id
+        in: query
+        required: false
+        schema:
+          type: integer
+        description: ''
+      security:
+      - bearerAuth: []
+  /api/articles/{article}:
+    get:
+      tags:
+      - Content
+      summary: Get article
+      responses:
+        '200':
+          description: Article
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  article:
+                    $ref: '#/components/schemas/Article'
+        '401':
+          description: Unauthenticated
+        '403':
+          description: Wrong role
+        '422':
+          description: Validation error
+      parameters:
+      - name: article
+        in: path
+        required: true
+        schema:
+          type: integer
+      security:
+      - bearerAuth: []
+  /api/audios:
+    get:
+      tags:
+      - Content
+      summary: List audios (paginated)
+      responses:
+        '200':
+          description: Audios
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  current_page:
+                    type: integer
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Audio'
+                  per_page:
+                    type: integer
+                  total:
+                    type: integer
+                  last_page:
+                    type: integer
+        '401':
+          description: Unauthenticated
+        '403':
+          description: Wrong role
+        '422':
+          description: Validation error
+      security:
+      - bearerAuth: []
+  /api/audios/{audio}:
+    get:
+      tags:
+      - Content
+      summary: Get audio
+      responses:
+        '200':
+          description: Audio
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  audio:
+                    $ref: '#/components/schemas/Audio'
+        '401':
+          description: Unauthenticated
+        '403':
+          description: Wrong role
+        '422':
+          description: Validation error
+      parameters:
+      - name: audio
+        in: path
+        required: true
+        schema:
+          type: integer
+      security:
+      - bearerAuth: []
+  /api/patient/chat:
+    get:
+      tags:
+      - Patient
+      summary: Chat history (newest first, paginated)
+      responses:
+        '200':
+          description: Messages
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  current_page:
+                    type: integer
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/ChatMessage'
+                  per_page:
+                    type: integer
+                  total:
+                    type: integer
+                  last_page:
+                    type: integer
+        '401':
+          description: Unauthenticated
+        '403':
+          description: Wrong role
+        '422':
+          description: Validation error
+      security:
+      - bearerAuth: []
+    post:
+      tags:
+      - Patient
+      summary: Send a message to the chatbot
+      responses:
+        '201':
+          description: Saved with the bot's reply
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  chat:
+                    $ref: '#/components/schemas/ChatMessage'
+                  ai_available:
+                    type: boolean
+        '401':
+          description: Unauthenticated
+        '403':
+          description: Wrong role
+        '422':
+          description: Validation error
+      description: The message is saved even if the AI service is down (ai_available=false
+        and a fallback reply). Rate limited to 20 per minute.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                message:
+                  type: string
+                  maxLength: 2000
+            example:
+              message: أنا حاسس بقلق النهارده
+      security:
+      - bearerAuth: []
+  /api/patient/mood-logs:
+    get:
+      tags:
+      - Patient
+      summary: Mood logs (paginated)
+      responses:
+        '200':
+          description: Logs
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  current_page:
+                    type: integer
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/MoodLog'
+                  per_page:
+                    type: integer
+                  total:
+                    type: integer
+                  last_page:
+                    type: integer
+        '401':
+          description: Unauthenticated
+        '403':
+          description: Wrong role
+        '422':
+          description: Validation error
+      security:
+      - bearerAuth: []
+    post:
+      tags:
+      - Patient
+      summary: Log mood
+      responses:
+        '201':
+          description: Created
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  mood_log:
+                    $ref: '#/components/schemas/MoodLog'
+        '401':
+          description: Unauthenticated
+        '403':
+          description: Wrong role
+        '422':
+          description: Validation error
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                mood_score:
+                  type: integer
+                  minimum: 1
+                  maximum: 5
+                challenge_id:
+                  type: integer
+                  nullable: true
+            example:
+              mood_score: 4
+      security:
+      - bearerAuth: []
+  /api/patient/challenges:
+    get:
+      tags:
+      - Patient
+      summary: List challenges
+      responses:
+        '200':
+          description: Challenges
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  challenges:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Challenge'
+        '401':
+          description: Unauthenticated
+        '403':
+          description: Wrong role
+        '422':
+          description: Validation error
+      parameters:
+      - name: type
+        in: query
+        required: false
+        schema:
+          type: string
+          enum:
+          - breathing
+          - walking
+          - reading
+        description: ''
+      security:
+      - bearerAuth: []
+  /api/patient/challenges/{challenge}/complete:
+    post:
+      tags:
+      - Patient
+      summary: Mark a challenge as completed
+      responses:
+        '201':
+          description: Recorded
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+        '401':
+          description: Unauthenticated
+        '403':
+          description: Wrong role
+        '422':
+          description: Validation error
+      parameters:
+      - name: challenge
+        in: path
+        required: true
+        schema:
+          type: integer
+      security:
+      - bearerAuth: []
+  /api/posts:
+    get:
+      tags:
+      - Posts
+      summary: List posts (newest first, paginated)
+      security:
+      - bearerAuth: []
+      responses:
+        '200':
+          description: Posts
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  current_page:
+                    type: integer
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Post'
+                  per_page:
+                    type: integer
+                  total:
+                    type: integer
+                  last_page:
+                    type: integer
+        '401':
+          description: Unauthenticated
+        '403':
+          description: Not a patient or doctor
+        '422':
+          description: Validation error
+    post:
+      tags:
+      - Posts
+      summary: Create a post (patient or doctor)
+      security:
+      - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+              - content
+              properties:
+                content:
+                  type: string
+                  maxLength: 5000
+            example:
+              content: أنا حاسس بتحسن النهارده
+      responses:
+        '201':
+          description: Created
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  post:
+                    $ref: '#/components/schemas/Post'
+        '401':
+          description: Unauthenticated
+        '403':
+          description: Not a patient or doctor
+        '422':
+          description: Validation error
+      description: Rate limited to 20 per minute.
+  /api/posts/{post}:
+    get:
+      tags:
+      - Posts
+      summary: Get one post
+      security:
+      - bearerAuth: []
+      parameters:
+      - name: post
+        in: path
+        required: true
+        schema:
+          type: integer
+      responses:
+        '200':
+          description: Post
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  post:
+                    $ref: '#/components/schemas/Post'
+        '401':
+          description: Unauthenticated
+        '403':
+          description: Not a patient or doctor
+        '422':
+          description: Validation error
+    post:
+      tags:
+      - Posts
+      summary: Edit my post
+      security:
+      - bearerAuth: []
+      parameters:
+      - name: post
+        in: path
+        required: true
+        schema:
+          type: integer
+      description: Only the author can edit a post. Rate limited to 20 per minute.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                content:
+                  type: string
+                  maxLength: 5000
+              required:
+              - content
+      responses:
+        '200':
+          description: Updated
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  post:
+                    $ref: '#/components/schemas/Post'
+        '401':
+          description: Unauthenticated
+        '403':
+          description: Not allowed (not the author, or wrong role)
+        '404':
+          description: Not found
+        '422':
+          description: Validation error
+    delete:
+      tags:
+      - Posts
+      summary: Delete my post
+      security:
+      - bearerAuth: []
+      parameters:
+      - name: post
+        in: path
+        required: true
+        schema:
+          type: integer
+      description: Only the author can delete a post.
+      responses:
+        '200':
+          description: Deleted
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+        '401':
+          description: Unauthenticated
+        '403':
+          description: Not allowed (not the author, or wrong role)
+        '404':
+          description: Not found
+        '422':
+          description: Validation error
+  /api/auth/forgot-password:
+    post:
+      tags:
+      - Auth
+      summary: 'Forgot password, screen 1: email the 6-digit code'
+      security: []
+      description: Always answers 200 with the same message, whether or not the email
+        exists. The code is valid for 15 minutes. Rate limited to 5 per minute.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                email:
+                  type: string
+                  format: email
+              required:
+              - email
+            example:
+              email: a@a.com
+      responses:
+        '200':
+          description: Done
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+        '422':
+          description: Invalid email format
+  /api/auth/verify-reset-code:
+    post:
+      tags:
+      - Auth
+      summary: 'Forgot password, screen 2: confirm the code'
+      security: []
+      description: 'Checks the code only (it is NOT used up; screen 3 sends it again).
+        One message for every failure (unknown email, wrong, expired or cancelled
+        code): ''الإيميل أو الكود غير صحيح.''. 5 wrong guesses cancel the code. Rate
+        limited to 10 per minute.'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                email:
+                  type: string
+                  format: email
+                code:
+                  type: string
+                  pattern: ^[0-9]{6}$
+              required:
+              - email
+              - code
+            example:
+              email: a@a.com
+              code: '123456'
+      responses:
+        '200':
+          description: The code is right
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                  valid:
+                    type: boolean
+        '422': &id001
+          description: Validation error
+  /api/auth/reset-password:
+    post:
+      tags:
+      - Auth
+      summary: 'Forgot password, screen 3: set the new password'
+      security: []
+      description: Send the email and the code from screen 2 with the two password
+        fields. If the two passwords differ the answer is 422 on 'password' ('كلمة
+        المرور الجديدة وتأكيدها لازم يكونوا متطابقين.') and the code stays valid.
+        On success the code is used up and all old login tokens are revoked; the app
+        then opens the login screen.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                email:
+                  type: string
+                  format: email
+                code:
+                  type: string
+                  pattern: ^[0-9]{6}$
+                password:
+                  type: string
+                  minLength: 8
+                password_confirmation:
+                  type: string
+              required:
+              - email
+              - code
+              - password
+              - password_confirmation
+            example:
+              email: a@a.com
+              code: '123456'
+              password: new-password-123
+              password_confirmation: new-password-123
+      responses:
+        '200':
+          description: Password changed
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+        '422':
+          description: Wrong or expired code, or weak / unconfirmed password
+  /api/patient/chat/voice:
+    post:
+      tags:
+      - Patient
+      summary: Send a voice message (tone-of-voice analysis)
+      security:
+      - bearerAuth: []
+      description: The recording is forwarded to the AI service for speech-to-text
+        and emotion detection. It is saved on the private disk even if the AI is down
+        (ai_available=false, emotion=null). Rate limited to 10 per minute.
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              properties:
+                audio:
+                  type: string
+                  format: binary
+                  description: mp3/wav/m4a/aac/ogg/webm/3gp/amr, max 10 MB
+              required:
+              - audio
+      responses:
+        '201':
+          description: Saved with the bot's reply and the detected emotion
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  chat:
+                    $ref: '#/components/schemas/ChatMessage'
+                  ai_available:
+                    type: boolean
+        '401':
+          description: Unauthenticated
+        '403':
+          description: Not a patient
+        '422':
+          description: Validation error
+  /api/patient/chat/{message}/audio:
+    get:
+      tags:
+      - Patient
+      summary: Play back one of my own recordings
+      security:
+      - bearerAuth: []
+      parameters:
+      - name: message
+        in: path
+        required: true
+        schema:
+          type: integer
+      responses:
+        '200':
+          description: The audio file
+          content:
+            audio/*:
+              schema:
+                type: string
+                format: binary
+        '404':
+          description: Not found, or not your recording
+        '401':
+          description: Unauthenticated
+        '403':
+          description: Not a patient
+  /api/auth/change-password:
+    post:
+      tags:
+      - Auth
+      summary: Change my password
+      security:
+      - bearerAuth: []
+      description: Logs out every other device; the token used for this request stays
+        valid. Rate limited to 5 per minute.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                current_password:
+                  type: string
+                password:
+                  type: string
+                  minLength: 8
+                password_confirmation:
+                  type: string
+              required:
+              - current_password
+              - password
+              - password_confirmation
+      responses:
+        '200':
+          description: Changed
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+        '401':
+          description: Unauthenticated
+        '403':
+          description: Wrong role
+        '422':
+          description: Validation error
+  /api/patient/profile:
+    post:
+      tags:
+      - Patient
+      summary: Edit my own data (patient)
+      security:
+      - bearerAuth: []
+      description: 'Send only the fields you want to change. Editable: first_name,
+        last_name, dob (must be more than 16 years ago), marital_status. Email, gender
+        and role cannot be changed (ignored if sent).'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                first_name:
+                  type: string
+                last_name:
+                  type: string
+                dob:
+                  type: string
+                  format: date
+                marital_status:
+                  type: string
+                  enum:
+                  - single
+                  - married
+      responses:
+        '200':
+          description: Updated
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                  user:
+                    $ref: '#/components/schemas/User'
+        '401':
+          description: Unauthenticated
+        '403':
+          description: Wrong role
+        '422':
+          description: Validation error
+  /api/doctor/profile:
+    post:
+      tags:
+      - Doctor
+      summary: Edit my own data (doctor)
+      security:
+      - bearerAuth: []
+      description: 'Send only the fields you want to change (multipart/form-data when
+        sending a photo). Editable: first_name, last_name, phone, clinic_url, bio
+        (max 300), photo, specialization. Changing the specialization puts the account
+        back to pending: the doctor is logged out until an admin approves again (requires_approval=true).
+        Any other change stays active. Email, date of birth, ID card, certificate
+        and status cannot be changed.'
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              properties:
+                first_name:
+                  type: string
+                last_name:
+                  type: string
+                phone:
+                  type: string
+                  pattern: ^\+?[0-9]{8,15}$
+                clinic_url:
+                  type: string
+                  format: uri
+                  nullable: true
+                  description: Send empty to clear
+                bio:
+                  type: string
+                  maxLength: 300
+                  nullable: true
+                photo:
+                  type: string
+                  format: binary
+                specialization:
+                  type: string
+                  description: Changing it needs admin re-approval
+      responses:
+        '200':
+          description: Updated
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                  user:
+                    $ref: '#/components/schemas/User'
+                  requires_approval:
+                    type: boolean
+                    description: true when the specialization changed and the account
+                      is pending again
+        '401':
+          description: Unauthenticated
+        '403':
+          description: Wrong role
+        '422':
+          description: Validation error
+  /api/auth/doctor/resubmit:
+    post:
+      tags:
+      - Auth
+      summary: 'Rejected doctor: register the data again'
+      security: []
+      description: For a doctor whose registration was rejected (login answered 403
+        with status=rejected, can_resubmit=true). The doctor proves who they are with
+        the email and password they registered with. All registration data is required
+        again. On success the profile is pending again and the old files are deleted.
+        Others get 403. Rate limited to 5 per minute.
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              properties:
+                email:
+                  type: string
+                  format: email
+                password:
+                  type: string
+                first_name:
+                  type: string
+                last_name:
+                  type: string
+                dob:
+                  type: string
+                  format: date
+                specialization:
+                  type: string
+                phone:
+                  type: string
+                  pattern: ^\+?[0-9]{8,15}$
+                clinic_url:
+                  type: string
+                  format: uri
+                bio:
+                  type: string
+                  maxLength: 300
+                photo:
+                  type: string
+                  format: binary
+                id_card_img:
+                  type: string
+                  format: binary
+                certificate_img:
+                  type: string
+                  format: binary
+              required:
+              - email
+              - password
+              - first_name
+              - last_name
+              - dob
+              - specialization
+              - phone
+              - photo
+              - id_card_img
+              - certificate_img
+      responses:
+        '200':
+          description: Sent for a new review
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                  status:
+                    type: string
+                    enum:
+                    - pending
+        '403':
+          description: Not a rejected doctor
+        '422': *id001
