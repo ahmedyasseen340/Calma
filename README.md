@@ -17,6 +17,7 @@ Calma is a mental health support platform available as a **mobile app** (patient
 - **Doctor profile:** photo, short bio (max 300 characters), specialization, phone and clinic link
 - **Edit my profile:** a patient edits name, date of birth and marital status; a doctor edits name, phone, clinic link, bio, photo and specialization (a new specialization needs the admin's approval again). Email is not editable. Both can change their password
 - **Rejected doctors** can register their data again with one button and be reviewed again
+- **Delete my account:** patients and doctors can permanently delete their account and all their data (with the password)
 - Forgot password in 3 screens: email, 6-digit code, new password + confirmation, then back to login
 
 ## 🏗️ Tech Stack
@@ -74,6 +75,7 @@ All paths start with `/api`. Send `Accept: application/json`, and `Authorization
 | Area | Endpoints | Who |
 |---|---|---|
 | Auth | `POST /auth/register`, `POST /auth/login`, `GET /auth/me`, `POST /auth/logout` | Public / logged-in |
+| Delete account | `POST /auth/delete-account` | Patient or doctor |
 | Password | `POST /auth/forgot-password`, `POST /auth/verify-reset-code`, `POST /auth/reset-password`, `POST /auth/change-password` | Public / logged-in |
 | Rejected doctor | `POST /auth/doctor/resubmit` | Public (rejected doctor) |
 | Edit my profile | `POST /patient/profile`, `POST /doctor/profile` | Patient / Doctor |
@@ -94,6 +96,7 @@ All paths start with `/api`. Send `Accept: application/json`, and `Authorization
 - A doctor who changes the **specialization** goes back to `pending` and is logged out until an admin approves again. Any other doctor edit keeps the account `active`.
 - A **rejected** doctor can send all the data again (`pending` again, reviewed again).
 - Changing the password requires the current password and logs out the other devices.
+- Deleting the account requires the password, is permanent, and removes all the user's data including voice recordings and a doctor's documents.
 - The reset code is 6 digits, valid for 15 minutes, works once, and 5 wrong guesses cancel it.
 - The ID card, certificate and voice recordings are private files; only the doctor photo, article covers and audio files are public.
 

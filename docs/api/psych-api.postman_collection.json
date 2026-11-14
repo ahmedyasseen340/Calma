@@ -661,6 +661,54 @@
             "description": "For a doctor whose registration was REJECTED (Login (doctor) returns 403 with status=rejected and can_resubmit=true). The profile goes back to pending for a new review."
           },
           "response": []
+        },
+        {
+          "name": "Delete my account",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/auth/delete-account",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "auth",
+                "delete-account"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"current_password\": \"password123\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "description": "Patient or doctor. PERMANENT: deletes the account, the profile, chat messages and voice recordings, mood logs, completed challenges, posts, and for doctors the ID card, certificate and photo. Needs the current password. Use a throw-away account to try it."
+          },
+          "response": []
         }
       ]
     },

@@ -34,6 +34,7 @@ CHATBOT_API_KEY=
 | POST | /api/auth/login | public |
 | GET | /api/auth/me | logged-in |
 | POST | /api/auth/logout | logged-in |
+| POST | /api/auth/delete-account | patient or doctor (`current_password`): deletes the account and all its data for good |
 | POST | /api/auth/change-password | logged-in (`current_password`, `password`, `password_confirmation`) |
 | POST | /api/auth/forgot-password | public, screen 1 (`email`) |
 | POST | /api/auth/verify-reset-code | public, screen 2 (`email`, `code`) |
@@ -94,6 +95,13 @@ Send only the fields you want to change. Fields that are not allowed are ignored
 - **Doctor + specialization:** if the specialization really changes, the account goes back to **`pending`**, the doctor is logged out, and cannot log in until an admin approves again (the answer has `requires_approval: true`). **Any other change keeps the doctor `active`.**
 - A new photo replaces and deletes the old one.
 - Change password: `POST /api/auth/change-password` (needs `current_password`; logs out the other devices).
+
+## Delete my account
+`POST /api/auth/delete-account` with `{"current_password": "..."}`, for a **patient** or a **doctor** (an admin cannot delete themselves).
+- It is **permanent**. The app should show a confirmation message first, then ask for the password.
+- Everything of the user is removed: the account, the patient or doctor profile, chat messages and **voice recordings**, mood logs, completed challenges, posts, and for doctors the ID card, certificate and photo.
+- All login tokens stop working at once, and the same email can register again later.
+- Other users' data is not touched. No database change: it uses the `ON DELETE CASCADE` links that already exist.
 
 ## Posts
 - `POST /api/posts` with `{content}` (max 5000 chars), `GET /api/posts` (newest first, 15 per page), `GET /api/posts/{id}`.

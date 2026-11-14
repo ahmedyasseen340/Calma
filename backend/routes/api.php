@@ -11,6 +11,7 @@ use App\Http\Controllers\Content\CategoryController;
 use App\Http\Controllers\Patient\ChallengeController;
 use App\Http\Controllers\Patient\ChatController;
 use App\Http\Controllers\Patient\MoodLogController;
+use App\Http\Controllers\Profile\AccountController;
 use App\Http\Controllers\Profile\ProfileController;
 use Illuminate\Support\Facades\Route;
 
@@ -26,6 +27,7 @@ Route::prefix('auth')->group(function () {
         Route::get('me', [AuthController::class, 'me']);
         Route::post('logout', [AuthController::class, 'logout']);
         Route::post('change-password', [AuthController::class, 'changePassword'])->middleware('throttle:5,1');
+        Route::post('delete-account', [AccountController::class, 'destroy'])->middleware(['role:patient,doctor', 'throttle:5,1']);
     });
 });
 

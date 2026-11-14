@@ -2,6 +2,9 @@
 
 Changes made to the backend and the database design, newest first.
 
+## Delete my account
+- `POST /api/auth/delete-account` (patient or doctor, needs the current password) deletes the account and all its data for good: profile, chat messages and voice recordings, mood logs, completed challenges, posts, and a doctor's ID card, certificate and photo. No database change (uses the existing `ON DELETE CASCADE`).
+
 ## Profile rules, rejected doctors, 3-screen forgot password
 - **Patient** edits `first_name`, `last_name`, `dob` (still older than 16) and `marital_status`. Email and gender can no longer be edited.
 - **Doctor** edits `first_name`, `last_name`, `phone`, `clinic_url`, `bio` (max 300), `photo` and `specialization`. Email cannot be edited. Changing the specialization sends the doctor back to `pending` (logged out until an admin approves again); any other change stays `active`.

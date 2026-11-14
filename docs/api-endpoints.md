@@ -1,6 +1,6 @@
 # Calma API endpoints
 
-REST API of the Laravel backend (41 endpoints). The machine-readable version is [`api/openapi.yaml`](api/openapi.yaml)
+REST API of the Laravel backend (42 endpoints). The machine-readable version is [`api/openapi.yaml`](api/openapi.yaml)
 (open it on https://editor.swagger.io) and a ready Postman collection is in [`api/psych-api.postman_collection.json`](api/psych-api.postman_collection.json).
 
 ## Conventions
@@ -16,6 +16,7 @@ REST API of the Laravel backend (41 endpoints). The machine-readable version is 
 | Method | URL | Who | What it does |
 |---|---|---|---|
 | POST | `/api/auth/change-password` | Any logged-in user | Change my password |
+| POST | `/api/auth/delete-account` | Patient or doctor | Delete my account (patient or doctor) |
 | POST | `/api/auth/doctor/resubmit` | Public (a rejected doctor) | Rejected doctor: register the data again |
 | POST | `/api/auth/forgot-password` | Public | Forgot password, screen 1: email the 6-digit code |
 | POST | `/api/auth/login` | Public | Login |
@@ -135,6 +136,12 @@ Send **only the fields you want to change**. Fields that are not allowed are ign
 1. The admin rejects a doctor. When that doctor tries to log in, the answer is `403` with `{"status": "rejected", "can_resubmit": true}`. The app shows a button **"إعادة تسجيل البيانات"**.
 2. The button opens a form with the registration data (first and last name, dob, specialization, phone, photo, ID card, certificate, optional clinic link and bio) **plus the doctor's email and password** (to prove who they are).
 3. `POST /api/auth/doctor/resubmit` (multipart/form-data) sends everything. The profile becomes `pending` again (old files are deleted) and shows up in the admin's pending list. Only a **rejected** doctor can use it, anyone else gets `403`.
+
+### Delete my account
+`POST /api/auth/delete-account` with `{"current_password": "..."}` (patient or doctor; an admin gets `403`).
+- **Permanent.** The app should show a confirmation message first, then ask for the password.
+- Deletes the account and everything that belongs to it: patient or doctor profile, chat messages and **voice recordings**, mood logs, completed challenges, posts, and for a doctor the ID card, certificate and photo.
+- All login tokens stop working immediately. The same email can register again later.
 
 ### Chat: `POST /api/patient/chat` (JSON) and `POST /api/patient/chat/voice` (multipart)
 ```json
