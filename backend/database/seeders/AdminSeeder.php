@@ -11,7 +11,7 @@ class AdminSeeder extends Seeder
     {
         // Change the email/password in .env (ADMIN_EMAIL / ADMIN_PASSWORD) before going to production.
         User::updateOrCreate(
-            ['email' => env('ADMIN_EMAIL', 'admin@example.com')],
+            ['email' => mb_strtolower(trim(env('ADMIN_EMAIL', 'admin@example.com')))],
             [
                 'first_name' => 'Admin',
                 'last_name' => 'User',

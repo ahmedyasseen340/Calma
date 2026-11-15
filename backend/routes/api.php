@@ -13,9 +13,10 @@ use App\Http\Controllers\Patient\ChatController;
 use App\Http\Controllers\Patient\MoodLogController;
 use App\Http\Controllers\Profile\AccountController;
 use App\Http\Controllers\Profile\ProfileController;
+use App\Http\Middleware\NormalizeEmail;
 use Illuminate\Support\Facades\Route;
 
-Route::prefix('auth')->group(function () {
+Route::prefix('auth')->middleware(NormalizeEmail::class)->group(function () {
     Route::post('register', [AuthController::class, 'register']);
     Route::post('login', [AuthController::class, 'login'])->middleware('throttle:10,1');
     Route::post('forgot-password', [PasswordResetController::class, 'forgot'])->middleware('throttle:5,1');
