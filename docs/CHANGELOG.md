@@ -2,6 +2,12 @@
 
 Changes made to the backend and the database design, newest first.
 
+## Database moved to PostgreSQL (Supabase)
+- The team database is now **PostgreSQL on Supabase** (one shared database) instead of a local MySQL. `docs/database/schema.sql` is rewritten for PostgreSQL; the tables and columns are the same.
+- New `docs/database/supabase-security.sql` turns on Row Level Security on every table so the Supabase public API cannot read or write them.
+- **Emails are saved in lower case** (middleware + model + a one-time migration), because PostgreSQL treats `A@x.com` and `a@x.com` as different. Login, register, forgot password and the doctor re-submit are case-insensitive.
+- `.env.example` and the READMEs describe the Supabase connection and the rules for a shared database.
+
 ## Delete my account
 - `POST /api/auth/delete-account` (patient or doctor, needs the current password) deletes the account and all its data for good: profile, chat messages and voice recordings, mood logs, completed challenges, posts, and a doctor's ID card, certificate and photo. No database change (uses the existing `ON DELETE CASCADE`).
 

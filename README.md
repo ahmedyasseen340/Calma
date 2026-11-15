@@ -26,7 +26,8 @@ Calma is a mental health support platform available as a **mobile app** (patient
 |---|---|
 | Mobile App | Flutter |
 | Web Dashboard | React, TailwindCSS |
-| Backend | PHP / Laravel, Sanctum (API tokens), MySQL |
+| Backend | PHP / Laravel, Sanctum (API tokens) |
+| Database | PostgreSQL, hosted on Supabase |
 | AI Services | Python, FastAPI, Whisper (speech-to-text), Librosa (tone of voice) |
 | LLM | OpenAI GPT-4o or Llama 3, LangChain |
 | Email | Laravel Mail (SMTP) |
@@ -48,7 +49,7 @@ Calma is a mental health support platform available as a **mobile app** (patient
 
 ## 🗄️ Database
 
-MySQL database `calma`, 14 tables:
+PostgreSQL database hosted on Supabase, 14 tables:
 
 | Table | Purpose |
 |---|---|
@@ -119,10 +120,10 @@ returns `{ "reply": "...", "is_danger": false }`
 ## 🚀 Getting Started
 
 ### Prerequisites
-PHP 8.2+, Composer, MySQL (XAMPP is fine), Node.js 18+, Flutter SDK, Python 3.10+
+PHP 8.2+ (with the `pdo_pgsql` extension enabled), Composer, a Supabase project (PostgreSQL), Node.js 18+, Flutter SDK, Python 3.10+
 
 ### Backend
-Create an empty MySQL database named `calma` first (for example from phpMyAdmin), then:
+The whole team uses **one shared PostgreSQL database on Supabase**. Get the connection details from the team lead (never from a screenshot or the repo) and put them in `backend/.env` (see `.env.example`), then:
 ```bash
 cd backend
 composer install
@@ -133,6 +134,13 @@ php artisan storage:link
 php artisan serve
 ```
 Run the tests with `php artisan test`.
+
+**Rules for the shared database**
+- Only **one person** runs `php artisan migrate` (when the schema changes). Everybody else just runs `php artisan serve`.
+- **Never** run `php artisan migrate:fresh` on the shared database: it deletes everyone's data.
+- Never commit `.env` or paste the database password in chat or screenshots.
+- The security script [`docs/database/supabase-security.sql`](docs/database/supabase-security.sql) must be run once in the Supabase SQL Editor.
+- Uploaded files (voice recordings, doctor documents, photos) are stored on the machine that runs the backend until the backend is deployed on a server with shared file storage.
 
 ### Frontend (React)
 ```bash
