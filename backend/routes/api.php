@@ -1,6 +1,9 @@
 <?php
 
 use App\Http\Controllers\Admin\DoctorApprovalController;
+use App\Http\Controllers\Admin\PatientManagementController;
+use App\Http\Controllers\Admin\PostModerationController;
+use App\Http\Controllers\Admin\StatsController;
 use App\Http\Controllers\Auth\AuthController;
 use App\Http\Controllers\Auth\DoctorResubmitController;
 use App\Http\Controllers\Auth\PasswordResetController;
@@ -8,8 +11,10 @@ use App\Http\Controllers\Content\ArticleController;
 use App\Http\Controllers\Content\AudioController;
 use App\Http\Controllers\Community\PostController;
 use App\Http\Controllers\Content\CategoryController;
+use App\Http\Controllers\Internal\ArticleFetchController;
 use App\Http\Controllers\Patient\ChallengeController;
 use App\Http\Controllers\Patient\ChatController;
+use App\Http\Controllers\Patient\DoctorDirectoryController;
 use App\Http\Controllers\Patient\MoodLogController;
 use App\Http\Controllers\Profile\AccountController;
 use App\Http\Controllers\Profile\ProfileController;
@@ -32,11 +37,25 @@ Route::prefix('auth')->middleware(NormalizeEmail::class)->group(function () {
     });
 });
 
-// ---- Admin: change doctor_profiles.status ----
+// ---- Admin ----
 Route::middleware(['auth:sanctum', 'role:admin'])->prefix('admin')->group(function () {
+    Route::get('stats', StatsController::class);
+
+    // Doctors: review the file, approve, reject (POST or PATCH), delete
     Route::get('doctors', [DoctorApprovalController::class, 'index']);
-    Route::post('doctors/{doctor}/approve', [DoctorApprovalController::class, 'approve']);
-    Route::post('doctors/{doctor}/reject', [DoctorApprovalController::class, 'reject']);
+    Route::get('doctors/{doctor}', [DoctorApprovalController::class, 'show']);
+    Route::get('doctors/{doctor}/documents/{type}', [DoctorApprovalController::class, 'document']);
+    Route::match(['post', 'patch'], 'doctors/{doctor}/approve', [DoctorApprovalController::class, 'approve']);
+    Route::match(['post', 'patch'], 'doctors/{doctor}/reject', [DoctorApprovalController::class, 'reject']);
+    Route::delete('doctors/{doctor}', [DoctorApprovalController::class, 'destroy']);
+
+    // Patients
+    Route::get('patients', [PatientManagementController::class, 'index']);
+    Route::delete('patients/{patient}', [PatientManagementController::class, 'destroy']);
+
+    // Community moderation
+    Route::get('posts', [PostModerationController::class, 'index']);
+    Route::delete('posts/{post}', [PostModerationController::class, 'destroy']);
 
     // Content management (updates use POST so multipart file uploads work)
     Route::post('categories', [CategoryController::class, 'store']);
@@ -68,6 +87,7 @@ Route::middleware(['auth:sanctum', 'role:patient'])->prefix('patient')->group(fu
     Route::post('chat/voice', [ChatController::class, 'sendVoice'])->middleware('throttle:10,1');
     Route::get('chat/{message}/audio', [ChatController::class, 'audio']);
 
+    Route::get('mood-logs/report', [MoodLogController::class, 'report']);
     Route::get('mood-logs', [MoodLogController::class, 'index']);
     Route::post('mood-logs', [MoodLogController::class, 'store']);
 
@@ -75,6 +95,12 @@ Route::middleware(['auth:sanctum', 'role:patient'])->prefix('patient')->group(fu
     Route::post('challenges/{challenge}/complete', [ChallengeController::class, 'complete']);
 
     Route::post('profile', [ProfileController::class, 'updatePatient']);
+});
+
+// ---- Patient: browse the approved doctors ----
+Route::middleware(['auth:sanctum', 'role:patient'])->group(function () {
+    Route::get('doctors', [DoctorDirectoryController::class, 'index']);
+    Route::get('doctors/{doctor}', [DoctorDirectoryController::class, 'show']);
 });
 
 // ---- Doctor: edit own profile (POST so a new photo can be uploaded) ----
@@ -90,3 +116,6 @@ Route::middleware(['auth:sanctum', 'role:patient,doctor'])->prefix('posts')->gro
     Route::post('{post}', [PostController::class, 'update'])->middleware('throttle:20,1');   // edit my post
     Route::delete('{post}', [PostController::class, 'destroy']);                              // delete my post
 });
+
+// ---- Called by a free external scheduler (see docs/deployment.md); needs the secret ARTICLE_CRON_TOKEN ----
+Route::post('internal/articles/fetch', ArticleFetchController::class)->middleware('throttle:6,1');

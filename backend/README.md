@@ -46,7 +46,15 @@ CHATBOT_API_KEY=
 | GET | /api/categories, /api/articles?category_id=, /api/articles/{id}, /api/audios, /api/audios/{id} | any logged-in user |
 | POST / DELETE | /api/admin/categories, /api/admin/articles, /api/admin/audios | admin (create) |
 | POST / DELETE | /api/admin/{categories,articles,audios}/{id} | admin (POST = update, DELETE = remove) |
-| GET / POST | /api/posts, GET /api/posts/{id} | patient or doctor (write and read posts) |
+| GET / POST | /api/posts, GET /api/posts/{id} | patient or doctor (`?type=doctor|patient`; **patient posts are anonymous**) |
+| GET | /api/doctors, /api/doctors/{id} | patient (approved doctors only, `?specialization=`) |
+| GET | /api/patient/mood-logs/report | patient (weekly + monthly series, averages, comparison) |
+| GET | /api/admin/stats | admin (dashboard numbers) |
+| GET | /api/admin/doctors/{id}, /api/admin/doctors/{id}/documents/{id_card or certificate} | admin (the doctor's file and documents) |
+| POST or PATCH | /api/admin/doctors/{id}/approve, /reject | admin |
+| DELETE | /api/admin/doctors/{id}, /api/admin/patients/{id} | admin (deletes the account and all its data) |
+| GET | /api/admin/patients | admin |
+| GET / DELETE | /api/admin/posts, /api/admin/posts/{id} | admin (moderation: sees the real author, deletes any post) |
 | POST / DELETE | /api/posts/{id} | the author only (POST edits, DELETE removes my own post) |
 | POST | /api/patient/profile | patient (edit own data: send only the fields to change) |
 | POST | /api/doctor/profile | doctor (edit own data; multipart when sending a new photo) |
@@ -132,6 +140,14 @@ This drops every table and rebuilds them, so test accounts created earlier in Po
 - When an admin rejects a doctor, a login attempt returns `403` with `{"status": "rejected", "can_resubmit": true}`. The app shows a button **"إعادة تسجيل البيانات"**.
 - The button opens a form with the registration fields (names, dob, specialization, phone, photo, ID card, certificate, optional clinic link and bio) plus the doctor's **email and password** (to prove who they are). It sends `POST /api/auth/doctor/resubmit` (multipart).
 - On success the account becomes `pending` again (old files are deleted), and it appears in the admin's pending list for a new review. Only **rejected** doctors can use it (others get `403`).
+
+## Matches the project chapters
+- **Anonymous patient posts:** a patient post never returns a name or an id of its author (`author: null`, `is_anonymous: true`). The author is only kept inside the database, so the admin can see who wrote it (moderation) and the author can edit or delete it (`is_mine: true` only for them). Doctor posts show the doctor (name, specialization, phone, clinic link, bio, photo).
+- **Admin moderation:** the admin lists all posts with the real author and deletes any of them. (There is no "hide": a post is deleted.)
+- **Active doctors only:** a doctor can use the API only while the account is `active`. If the admin rejects a doctor, or the doctor goes back to `pending`, the old token is refused.
+- **Doctors list for patients:** only approved doctors, with the phone number and clinic link; never the date of birth, status or documents.
+- **Mood:** `POST /api/patient/mood-logs` answers `{mood_log, challenge}`; when the score is 1 or 2, `challenge` is a random positive challenge for the pop-up. `GET /api/patient/mood-logs/report` returns the last 7 days and the last 30 days (one row per day: average, entries, 3-day moving average), the average of each period, and the comparison with the previous 30 days (`up` / `down` / `same`).
+- **Articles pipeline:** `php artisan articles:fetch` reads the RSS/Atom feeds listed in `ARTICLE_FEEDS` (`.env`, separated by commas), cleans the items, skips links already saved, and puts each article in the categories whose keywords it contains (`config/articles.php`). It is scheduled every day: the server needs the usual cron line `* * * * * php /path/to/backend/artisan schedule:run`. Without feeds it does nothing.
 
 ## Voice messages (tone-of-voice analysis)
 - The patient records a voice message and sends it to `POST /api/patient/chat/voice` (field `audio`: mp3/wav/m4a/aac/ogg/webm/3gp/amr, up to 10 MB).

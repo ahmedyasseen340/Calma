@@ -3,7 +3,7 @@
 namespace App\Http\Controllers\Auth;
 
 use App\Http\Controllers\Controller;
-use App\Mail\ResetCodeMail;
+use App\Services\ResetCodeSender;
 use App\Models\User;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -11,7 +11,6 @@ use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
-use Illuminate\Support\Facades\Mail;
 use Illuminate\Validation\ValidationException;
 use Throwable;
 
@@ -25,7 +24,7 @@ class PasswordResetController extends Controller
     private const MAX_WRONG_ATTEMPTS = 5;
 
     // POST /api/auth/forgot-password   body: { email }
-    public function forgot(Request $request): JsonResponse
+    public function forgot(Request $request, ResetCodeSender $sender): JsonResponse
     {
         $data = $request->validate(['email' => ['required', 'email']]);
 
@@ -41,7 +40,7 @@ class PasswordResetController extends Controller
             Cache::forget($this->attemptsKey($user->email));
 
             try {
-                Mail::to($user->email)->send(new ResetCodeMail($code, self::CODE_TTL_MINUTES));
+                $sender->send($user->email, $code, self::CODE_TTL_MINUTES);
             } catch (Throwable $e) {
                 report($e); // check storage/logs/laravel.log if emails don't arrive
             }
