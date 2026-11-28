@@ -1,0 +1,89 @@
+# Render Blueprint: Render dashboard > New > Blueprint > choose this repository.
+# Values marked "sync: false" are secrets: Render asks you for them in the dashboard (they are never stored in Git).
+# Step by step: docs/deployment.md
+services:
+  - type: web
+    name: calma-api
+    runtime: docker
+    plan: free
+    region: frankfurt
+    rootDir: backend
+    dockerfilePath: ./Dockerfile
+    dockerContext: .
+    healthCheckPath: /up
+    envVars:
+      # --- application ---
+      - key: APP_NAME
+        value: Calma
+      - key: APP_ENV
+        value: production
+      - key: APP_DEBUG
+        value: "false"
+      - key: APP_KEY            # php artisan key:generate --show
+        sync: false
+      - key: APP_URL            # https://calma-api.onrender.com (the address Render gives you)
+        sync: false
+      - key: LOG_CHANNEL
+        value: stderr
+      - key: SESSION_DRIVER
+        value: array
+      - key: CACHE_STORE
+        value: file
+      - key: CACHE_DRIVER
+        value: file
+      - key: QUEUE_CONNECTION
+        value: sync
+      - key: RUN_MIGRATIONS
+        value: "false"
+      # --- database: Supabase PostgreSQL (Connect > Session pooler) ---
+      - key: DB_CONNECTION
+        value: pgsql
+      - key: DB_HOST
+        sync: false
+      - key: DB_PORT
+        value: "5432"
+      - key: DB_DATABASE
+        value: postgres
+      - key: DB_USERNAME
+        sync: false
+      - key: DB_PASSWORD
+        sync: false
+      - key: DB_SSLMODE
+        value: require
+      # --- files: Supabase Storage (S3 API) ---
+      - key: PRIVATE_STORAGE
+        value: s3
+      - key: PUBLIC_STORAGE
+        value: s3
+      - key: SUPABASE_S3_ENDPOINT
+        sync: false
+      - key: SUPABASE_S3_REGION
+        value: eu-west-1
+      - key: SUPABASE_S3_KEY
+        sync: false
+      - key: SUPABASE_S3_SECRET
+        sync: false
+      - key: SUPABASE_PRIVATE_BUCKET
+        value: calma-private
+      - key: SUPABASE_PUBLIC_BUCKET
+        value: calma-public
+      - key: SUPABASE_PUBLIC_URL
+        sync: false
+      # --- e-mail for "forgot password": Brevo over HTTPS (Render's free plan blocks SMTP) ---
+      - key: BREVO_API_KEY
+        sync: false
+      - key: MAIL_FROM_ADDRESS  # the sender you verified in Brevo
+        sync: false
+      - key: MAIL_FROM_NAME
+        value: Calma
+      - key: MAIL_MAILER
+        value: log
+      # --- AI service and articles ---
+      - key: CHATBOT_URL
+        sync: false
+      - key: CHATBOT_API_KEY
+        sync: false
+      - key: ARTICLE_FEEDS
+        sync: false
+      - key: ARTICLE_CRON_TOKEN
+        sync: false

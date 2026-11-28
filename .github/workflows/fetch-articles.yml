@@ -1,0 +1,27 @@
+# Starts the daily import of mental health articles on the server (the free Render plan has no cron).
+# It does nothing until the two secrets exist: GitHub > Settings > Secrets and variables > Actions.
+#   API_URL              = https://calma-api.onrender.com        (no slash at the end)
+#   ARTICLE_CRON_TOKEN   = the same secret that is set on the server
+name: Fetch articles daily
+
+on:
+  schedule:
+    - cron: "0 6 * * *"
+  workflow_dispatch:
+
+jobs:
+  fetch:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Call the API
+        env:
+          API_URL: ${{ secrets.API_URL }}
+          TOKEN: ${{ secrets.ARTICLE_CRON_TOKEN }}
+        run: |
+          if [ -z "$API_URL" ] || [ -z "$TOKEN" ]; then
+            echo "API_URL / ARTICLE_CRON_TOKEN are not set: nothing to do."
+            exit 0
+          fi
+          # the free server may need up to a minute to wake up
+          curl --fail --silent --show-error --max-time 180 --retry 2 --retry-delay 20 --retry-all-errors \
+            -X POST -H "X-Cron-Token: $TOKEN" "$API_URL/api/internal/articles/fetch"

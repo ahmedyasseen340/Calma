@@ -285,35 +285,44 @@
           }
         }
       },
-      "PostAuthor": {
+      "Post": {
         "type": "object",
         "properties": {
           "id": {
             "type": "integer"
           },
-          "first_name": {
-            "type": "string"
-          },
-          "last_name": {
-            "type": "string"
-          },
-          "role": {
+          "type": {
             "type": "string",
             "enum": [
-              "patient",
-              "doctor"
+              "doctor",
+              "patient"
             ]
           },
-          "doctor_profile": {
+          "is_anonymous": {
+            "type": "boolean",
+            "description": "true for patient posts"
+          },
+          "is_mine": {
+            "type": "boolean",
+            "description": "true only for the author"
+          },
+          "content": {
+            "type": "string"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "author": {
             "nullable": true,
             "type": "object",
-            "description": "Only for doctors",
+            "description": "null for patient posts (anonymous). For a doctor post:",
             "properties": {
-              "id": {
-                "type": "integer"
+              "first_name": {
+                "type": "string"
               },
-              "user_id": {
-                "type": "integer"
+              "last_name": {
+                "type": "string"
               },
               "specialization": {
                 "type": "string"
@@ -325,11 +334,11 @@
                 "type": "string",
                 "nullable": true
               },
-              "photo_url": {
+              "bio": {
                 "type": "string",
                 "nullable": true
               },
-              "bio": {
+              "photo_url": {
                 "type": "string",
                 "nullable": true
               }
@@ -337,24 +346,35 @@
           }
         }
       },
-      "Post": {
+      "DoctorCard": {
         "type": "object",
         "properties": {
           "id": {
             "type": "integer"
           },
-          "user_id": {
-            "type": "integer"
-          },
-          "content": {
+          "first_name": {
             "type": "string"
           },
-          "created_at": {
-            "type": "string",
-            "format": "date-time"
+          "last_name": {
+            "type": "string"
           },
-          "user": {
-            "$ref": "#/components/schemas/PostAuthor"
+          "specialization": {
+            "type": "string"
+          },
+          "phone": {
+            "type": "string"
+          },
+          "clinic_url": {
+            "type": "string",
+            "nullable": true
+          },
+          "bio": {
+            "type": "string",
+            "nullable": true
+          },
+          "photo_url": {
+            "type": "string",
+            "nullable": true
           }
         }
       }
@@ -837,6 +857,56 @@
             "bearerAuth": []
           }
         ]
+      },
+      "patch": {
+        "tags": [
+          "Admin"
+        ],
+        "summary": "Approve a doctor (status=active) (PATCH, same as POST)",
+        "responses": {
+          "200": {
+            "description": "Updated",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "message": {
+                      "type": "string"
+                    },
+                    "doctor": {
+                      "$ref": "#/components/schemas/DoctorProfile"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthenticated"
+          },
+          "403": {
+            "description": "Wrong role"
+          },
+          "422": {
+            "description": "Validation error"
+          }
+        },
+        "parameters": [
+          {
+            "name": "doctor",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ]
       }
     },
     "/api/admin/doctors/{doctor}/reject": {
@@ -845,6 +915,57 @@
           "Admin"
         ],
         "summary": "Reject a doctor (status=rejected)",
+        "responses": {
+          "200": {
+            "description": "Updated",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "message": {
+                      "type": "string"
+                    },
+                    "doctor": {
+                      "$ref": "#/components/schemas/DoctorProfile"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthenticated"
+          },
+          "403": {
+            "description": "Wrong role"
+          },
+          "422": {
+            "description": "Validation error"
+          }
+        },
+        "parameters": [
+          {
+            "name": "doctor",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "description": "The doctor is logged out at once (all tokens deleted)."
+      },
+      "patch": {
+        "tags": [
+          "Admin"
+        ],
+        "summary": "Reject a doctor (status=rejected) (PATCH, same as POST)",
         "responses": {
           "200": {
             "description": "Updated",
@@ -1881,6 +2002,14 @@
                   "properties": {
                     "mood_log": {
                       "$ref": "#/components/schemas/MoodLog"
+                    },
+                    "challenge": {
+                      "nullable": true,
+                      "allOf": [
+                        {
+                          "$ref": "#/components/schemas/Challenge"
+                        }
+                      ]
                     }
                   }
                 }
@@ -1925,7 +2054,8 @@
           {
             "bearerAuth": []
           }
-        ]
+        ],
+        "description": "When mood_score is 1 or 2, `challenge` is a random positive challenge for the pop-up; otherwise null."
       }
     },
     "/api/patient/challenges": {
@@ -2040,7 +2170,7 @@
         "tags": [
           "Posts"
         ],
-        "summary": "List posts (newest first, paginated)",
+        "summary": "List posts (patient posts are anonymous)",
         "security": [
           {
             "bearerAuth": []
@@ -2086,7 +2216,22 @@
           "422": {
             "description": "Validation error"
           }
-        }
+        },
+        "parameters": [
+          {
+            "name": "type",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "doctor",
+                "patient"
+              ]
+            }
+          }
+        ],
+        "description": "Newest first, 15 per page. A patient post has author = null (no name, no id of the author). A doctor post shows the doctor."
       },
       "post": {
         "tags": [
@@ -2999,6 +3144,765 @@
             "description": "Validation error"
           }
         }
+      }
+    },
+    "/api/patient/mood-logs/report": {
+      "get": {
+        "tags": [
+          "Patient"
+        ],
+        "summary": "Mood report for the charts",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Report",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "weekly": {
+                      "type": "object",
+                      "properties": {
+                        "from": {
+                          "type": "string",
+                          "format": "date"
+                        },
+                        "to": {
+                          "type": "string",
+                          "format": "date"
+                        },
+                        "average": {
+                          "type": "number",
+                          "nullable": true
+                        },
+                        "entries": {
+                          "type": "integer"
+                        },
+                        "days": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "date": {
+                                "type": "string",
+                                "format": "date"
+                              },
+                              "average": {
+                                "type": "number",
+                                "nullable": true
+                              },
+                              "entries": {
+                                "type": "integer"
+                              },
+                              "moving_average": {
+                                "type": "number",
+                                "nullable": true,
+                                "description": "average of the last 3 days with data"
+                              }
+                            }
+                          },
+                          "description": "7 rows, one per day"
+                        }
+                      }
+                    },
+                    "monthly": {
+                      "type": "object",
+                      "properties": {
+                        "from": {
+                          "type": "string",
+                          "format": "date"
+                        },
+                        "to": {
+                          "type": "string",
+                          "format": "date"
+                        },
+                        "average": {
+                          "type": "number",
+                          "nullable": true
+                        },
+                        "entries": {
+                          "type": "integer"
+                        },
+                        "days": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "date": {
+                                "type": "string",
+                                "format": "date"
+                              },
+                              "average": {
+                                "type": "number",
+                                "nullable": true
+                              },
+                              "entries": {
+                                "type": "integer"
+                              },
+                              "moving_average": {
+                                "type": "number",
+                                "nullable": true,
+                                "description": "average of the last 3 days with data"
+                              }
+                            }
+                          },
+                          "description": "30 rows, one per day"
+                        }
+                      }
+                    },
+                    "previous_month": {
+                      "type": "object",
+                      "properties": {
+                        "from": {
+                          "type": "string",
+                          "format": "date"
+                        },
+                        "to": {
+                          "type": "string",
+                          "format": "date"
+                        },
+                        "average": {
+                          "type": "number",
+                          "nullable": true
+                        },
+                        "entries": {
+                          "type": "integer"
+                        }
+                      }
+                    },
+                    "comparison": {
+                      "type": "object",
+                      "properties": {
+                        "difference": {
+                          "type": "number",
+                          "nullable": true
+                        },
+                        "trend": {
+                          "type": "string",
+                          "nullable": true,
+                          "enum": [
+                            "up",
+                            "down",
+                            "same"
+                          ]
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthenticated"
+          },
+          "403": {
+            "description": "Wrong role (a doctor who is not active gets 403 with status)"
+          },
+          "404": {
+            "description": "Not found"
+          },
+          "422": {
+            "description": "Validation error"
+          }
+        },
+        "description": "weekly = last 7 days, monthly = last 30 days (today included), previous_month = the 30 days before. Days without data have average = null."
+      }
+    },
+    "/api/doctors": {
+      "get": {
+        "tags": [
+          "Patient"
+        ],
+        "summary": "Browse the approved doctors",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Active doctors only",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "current_page": {
+                      "type": "integer"
+                    },
+                    "data": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/DoctorCard"
+                      }
+                    },
+                    "per_page": {
+                      "type": "integer"
+                    },
+                    "total": {
+                      "type": "integer"
+                    },
+                    "last_page": {
+                      "type": "integer"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthenticated"
+          },
+          "403": {
+            "description": "Wrong role (a doctor who is not active gets 403 with status)"
+          },
+          "404": {
+            "description": "Not found"
+          },
+          "422": {
+            "description": "Validation error"
+          }
+        },
+        "parameters": [
+          {
+            "name": "specialization",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "description": "Only active (approved) doctors. Date of birth, status and documents are never returned."
+      }
+    },
+    "/api/doctors/{doctor}": {
+      "get": {
+        "tags": [
+          "Patient"
+        ],
+        "summary": "One approved doctor",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Doctor",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "doctor": {
+                      "$ref": "#/components/schemas/DoctorCard"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthenticated"
+          },
+          "403": {
+            "description": "Wrong role (a doctor who is not active gets 403 with status)"
+          },
+          "404": {
+            "description": "Not found"
+          },
+          "422": {
+            "description": "Validation error"
+          }
+        },
+        "parameters": [
+          {
+            "name": "doctor",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ]
+      }
+    },
+    "/api/admin/stats": {
+      "get": {
+        "tags": [
+          "Admin"
+        ],
+        "summary": "Dashboard statistics",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Numbers",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "patients": {
+                      "type": "integer"
+                    },
+                    "doctors": {
+                      "type": "object",
+                      "properties": {
+                        "active": {
+                          "type": "integer"
+                        },
+                        "pending": {
+                          "type": "integer"
+                        },
+                        "rejected": {
+                          "type": "integer"
+                        }
+                      }
+                    },
+                    "posts": {
+                      "type": "integer"
+                    },
+                    "articles": {
+                      "type": "integer"
+                    },
+                    "audios": {
+                      "type": "integer"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthenticated"
+          },
+          "403": {
+            "description": "Wrong role (a doctor who is not active gets 403 with status)"
+          },
+          "404": {
+            "description": "Not found"
+          },
+          "422": {
+            "description": "Validation error"
+          }
+        }
+      }
+    },
+    "/api/admin/doctors/{doctor}": {
+      "get": {
+        "tags": [
+          "Admin"
+        ],
+        "summary": "Open a doctor's file",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The doctor with links to the ID card and the certificate",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "doctor": {
+                      "$ref": "#/components/schemas/DoctorProfile"
+                    },
+                    "documents": {
+                      "type": "object",
+                      "properties": {
+                        "id_card": {
+                          "type": "string"
+                        },
+                        "certificate": {
+                          "type": "string"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthenticated"
+          },
+          "403": {
+            "description": "Wrong role (a doctor who is not active gets 403 with status)"
+          },
+          "404": {
+            "description": "Not found"
+          },
+          "422": {
+            "description": "Validation error"
+          }
+        },
+        "parameters": [
+          {
+            "name": "doctor",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ]
+      },
+      "delete": {
+        "tags": [
+          "Admin"
+        ],
+        "summary": "Delete a doctor and all his data",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Deleted",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "message": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthenticated"
+          },
+          "403": {
+            "description": "Wrong role (a doctor who is not active gets 403 with status)"
+          },
+          "404": {
+            "description": "Not found"
+          },
+          "422": {
+            "description": "Validation error"
+          }
+        },
+        "parameters": [
+          {
+            "name": "doctor",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ]
+      }
+    },
+    "/api/admin/doctors/{doctor}/documents/{type}": {
+      "get": {
+        "tags": [
+          "Admin"
+        ],
+        "summary": "View the ID card or the certificate (private file)",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The image",
+            "content": {
+              "image/*": {
+                "schema": {
+                  "type": "string",
+                  "format": "binary"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthenticated"
+          },
+          "403": {
+            "description": "Wrong role (a doctor who is not active gets 403 with status)"
+          },
+          "404": {
+            "description": "Not found"
+          },
+          "422": {
+            "description": "Validation error"
+          }
+        },
+        "parameters": [
+          {
+            "name": "doctor",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          },
+          {
+            "name": "type",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "id_card",
+                "certificate"
+              ]
+            }
+          }
+        ]
+      }
+    },
+    "/api/admin/patients": {
+      "get": {
+        "tags": [
+          "Admin"
+        ],
+        "summary": "List patients",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Patients",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "current_page": {
+                      "type": "integer"
+                    },
+                    "data": {
+                      "type": "array",
+                      "items": {
+                        "type": "object"
+                      }
+                    },
+                    "per_page": {
+                      "type": "integer"
+                    },
+                    "total": {
+                      "type": "integer"
+                    },
+                    "last_page": {
+                      "type": "integer"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthenticated"
+          },
+          "403": {
+            "description": "Wrong role (a doctor who is not active gets 403 with status)"
+          },
+          "404": {
+            "description": "Not found"
+          },
+          "422": {
+            "description": "Validation error"
+          }
+        }
+      }
+    },
+    "/api/admin/patients/{patient}": {
+      "delete": {
+        "tags": [
+          "Admin"
+        ],
+        "summary": "Delete a patient and all his data",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Deleted",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "message": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthenticated"
+          },
+          "403": {
+            "description": "Wrong role (a doctor who is not active gets 403 with status)"
+          },
+          "404": {
+            "description": "Not found"
+          },
+          "422": {
+            "description": "Validation error"
+          }
+        },
+        "parameters": [
+          {
+            "name": "patient",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ]
+      }
+    },
+    "/api/admin/posts": {
+      "get": {
+        "tags": [
+          "Admin"
+        ],
+        "summary": "Moderation: all posts with the real author",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Posts",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "current_page": {
+                      "type": "integer"
+                    },
+                    "data": {
+                      "type": "array",
+                      "items": {
+                        "type": "object"
+                      }
+                    },
+                    "per_page": {
+                      "type": "integer"
+                    },
+                    "total": {
+                      "type": "integer"
+                    },
+                    "last_page": {
+                      "type": "integer"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthenticated"
+          },
+          "403": {
+            "description": "Wrong role (a doctor who is not active gets 403 with status)"
+          },
+          "404": {
+            "description": "Not found"
+          },
+          "422": {
+            "description": "Validation error"
+          }
+        },
+        "parameters": [
+          {
+            "name": "type",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "doctor",
+                "patient"
+              ]
+            }
+          }
+        ],
+        "description": "The admin sees who wrote every post, including the anonymous patient posts."
+      }
+    },
+    "/api/admin/posts/{post}": {
+      "delete": {
+        "tags": [
+          "Admin"
+        ],
+        "summary": "Delete any post",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Deleted",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "message": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthenticated"
+          },
+          "403": {
+            "description": "Wrong role (a doctor who is not active gets 403 with status)"
+          },
+          "404": {
+            "description": "Not found"
+          },
+          "422": {
+            "description": "Validation error"
+          }
+        },
+        "parameters": [
+          {
+            "name": "post",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ]
       }
     }
   }

@@ -2,6 +2,21 @@
 
 Changes made to the backend and the database design, newest first.
 
+## Server deployment and shared file storage (no database change)
+- **Files in Supabase Storage:** `config/filesystems.php` keeps the disk names `local` (private) and `public`, and switches each one to a Supabase bucket with `PRIVATE_STORAGE=s3` / `PUBLIC_STORAGE=s3`. On a laptop nothing changes. Tests always use folders.
+- **Docker + Render:** `backend/Dockerfile`, `render.yaml` and `docs/deployment.md` (step by step). The server gives the apps a stable `https://` address.
+- **Forgot-password e-mail over HTTPS:** with `BREVO_API_KEY` the code is sent through Brevo's API (Render's free plan blocks SMTP). Without it the normal Laravel mailer is used.
+- **Daily article import on a free host:** `POST /api/internal/articles/fetch` (secret `ARTICLE_CRON_TOKEN`) and the GitHub Actions workflow `.github/workflows/fetch-articles.yml`.
+
+## Backend matched to the project chapters (no database change)
+- **Anonymous patient posts:** a patient post never returns its author (`author: null`); doctor posts show the doctor. `GET /api/posts?type=doctor|patient`. `is_mine` marks the user's own posts.
+- **Admin moderation:** `GET /api/admin/posts` (with the real author) and `DELETE /api/admin/posts/{id}`.
+- **Admin dashboard:** `GET /api/admin/stats`, the doctor's file with the ID card and certificate (`GET /api/admin/doctors/{id}` and `/documents/{id_card|certificate}`), `GET /api/admin/patients`, delete a doctor or a patient (`DELETE`), approve/reject also with `PATCH`.
+- **Doctors list for patients:** `GET /api/doctors` and `/api/doctors/{id}` (approved doctors only, with phone and clinic link).
+- **Mood:** a low mood (1 or 2) returns a random positive challenge for the pop-up; `GET /api/patient/mood-logs/report` gives the weekly and monthly series, averages, a 3-day moving average and the comparison with the previous month.
+- **Articles pipeline:** `php artisan articles:fetch` (scheduled daily) imports RSS/Atom feeds from `ARTICLE_FEEDS` and categorizes the articles by keywords.
+- **Security:** a doctor who is not `active` is refused by every protected route, also with an old token; rejecting a doctor logs them out.
+
 ## Database moved to PostgreSQL (Supabase)
 - The team database is now **PostgreSQL on Supabase** (one shared database) instead of a local MySQL. `docs/database/schema.sql` is rewritten for PostgreSQL; the tables and columns are the same.
 - New `docs/database/supabase-security.sql` turns on Row Level Security on every table so the Supabase public API cannot read or write them.

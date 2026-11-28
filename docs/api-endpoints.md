@@ -1,6 +1,6 @@
 # Calma API endpoints
 
-REST API of the Laravel backend (42 endpoints). The machine-readable version is [`api/openapi.yaml`](api/openapi.yaml)
+REST API of the Laravel backend (55 endpoints). The machine-readable version is [`api/openapi.yaml`](api/openapi.yaml)
 (open it on https://editor.swagger.io) and a ready Postman collection is in [`api/psych-api.postman_collection.json`](api/psych-api.postman_collection.json).
 
 ## Conventions
@@ -26,13 +26,23 @@ REST API of the Laravel backend (42 endpoints). The machine-readable version is 
 | POST | `/api/auth/reset-password` | Public | Forgot password, screen 3: set the new password |
 | POST | `/api/auth/verify-reset-code` | Public | Forgot password, screen 2: confirm the code |
 
-## Admin: doctor approval
+## Admin
 
 | Method | URL | Who | What it does |
 |---|---|---|---|
 | GET | `/api/admin/doctors` | Admin | List doctor profiles |
+| GET | `/api/admin/doctors/{doctor}` | Admin | Open a doctor's file |
+| DELETE | `/api/admin/doctors/{doctor}` | Admin | Delete a doctor and all his data |
 | POST | `/api/admin/doctors/{doctor}/approve` | Admin | Approve a doctor (status=active) |
+| PATCH | `/api/admin/doctors/{doctor}/approve` | Admin | Approve a doctor (status=active) (PATCH, same as POST) |
+| GET | `/api/admin/doctors/{doctor}/documents/{type}` | Admin | View the ID card or the certificate (private file) |
 | POST | `/api/admin/doctors/{doctor}/reject` | Admin | Reject a doctor (status=rejected) |
+| PATCH | `/api/admin/doctors/{doctor}/reject` | Admin | Reject a doctor (status=rejected) (PATCH, same as POST) |
+| GET | `/api/admin/patients` | Admin | List patients |
+| DELETE | `/api/admin/patients/{patient}` | Admin | Delete a patient and all his data |
+| GET | `/api/admin/posts` | Admin | Moderation: all posts with the real author |
+| DELETE | `/api/admin/posts/{post}` | Admin | Delete any post |
+| GET | `/api/admin/stats` | Admin | Dashboard statistics |
 
 ## Admin: content management
 
@@ -62,7 +72,7 @@ REST API of the Laravel backend (42 endpoints). The machine-readable version is 
 
 | Method | URL | Who | What it does |
 |---|---|---|---|
-| GET | `/api/posts` | Patient or doctor | List posts (newest first, paginated) |
+| GET | `/api/posts` | Patient or doctor | List posts (patient posts are anonymous) |
 | POST | `/api/posts` | Patient or doctor | Create a post (patient or doctor) |
 | GET | `/api/posts/{post}` | Patient or doctor | Get one post |
 | POST | `/api/posts/{post}` | The post's author | Edit my post |
@@ -72,6 +82,8 @@ REST API of the Laravel backend (42 endpoints). The machine-readable version is 
 
 | Method | URL | Who | What it does |
 |---|---|---|---|
+| GET | `/api/doctors` | Patient | Browse the approved doctors |
+| GET | `/api/doctors/{doctor}` | Patient | One approved doctor |
 | GET | `/api/patient/challenges` | Patient | List challenges |
 | POST | `/api/patient/challenges/{challenge}/complete` | Patient | Mark a challenge as completed |
 | GET | `/api/patient/chat` | Patient | Chat history (newest first, paginated) |
@@ -80,6 +92,7 @@ REST API of the Laravel backend (42 endpoints). The machine-readable version is 
 | GET | `/api/patient/chat/{message}/audio` | Patient | Play back one of my own recordings |
 | GET | `/api/patient/mood-logs` | Patient | Mood logs (paginated) |
 | POST | `/api/patient/mood-logs` | Patient | Log mood |
+| GET | `/api/patient/mood-logs/report` | Patient | Mood report for the charts |
 | POST | `/api/patient/profile` | Patient | Edit my own data (patient) |
 
 ## Doctor
@@ -171,9 +184,35 @@ Voice: send the recording in the `audio` field (mp3, wav, m4a, aac, ogg, webm, 3
 - Verifying the code does **not** use it up; it is used up when the password is changed. After a reset, all old login tokens stop working.
 - In development the email is written to `storage/logs/laravel.log` (`MAIL_MAILER=log`).
 
-### Posts: `POST /api/posts`
+### Posts (patient posts are anonymous)
+`POST /api/posts` with `{"content": "..."}`; `GET /api/posts?type=doctor|patient` (newest first, 15 per page); edit with `POST /api/posts/{id}` and delete with `DELETE /api/posts/{id}` (only the author).
+
+Every post:
 ```json
-{ "content": "أنا حاسس بتحسن النهارده" }
+{
+  "id": 7, "type": "patient", "is_anonymous": true, "is_mine": false,
+  "content": "تجربتي مع القلق...", "created_at": "2026-11-15T10:00:00.000000Z",
+  "author": null
+}
 ```
-Edit your post with `POST /api/posts/{id}` (`{"content": "..."}`) and delete it with `DELETE /api/posts/{id}`; only the author can (others get `403`).
-Each post shows its author's `first_name`, `last_name`, `role`. For doctors it also shows `specialization`, `phone`, `clinic_url`, `bio` and `photo_url`.
+- **Patient post:** `author` is always `null`. No name and no id of the writer is ever returned, to anyone. `is_mine` is `true` only for the writer, so the app knows which posts they can edit or delete.
+- **Doctor post:** `type: "doctor"`, `is_anonymous: false`, and `author` = `{first_name, last_name, specialization, phone, clinic_url, bio, photo_url}`.
+- **Admin moderation:** `GET /api/admin/posts` returns every post **with the real author** (the admin sees who wrote an anonymous post) and `DELETE /api/admin/posts/{id}` removes any post. There is no "hide": a post is deleted.
+
+### Mood: pop-up challenge and report
+- `POST /api/patient/mood-logs` answers `{ "mood_log": {...}, "challenge": {...} }`. When `mood_score` is **1 or 2**, `challenge` is a random positive challenge (show it as a pop-up); otherwise it is `null`.
+- `GET /api/patient/mood-logs/report` returns what the charts need: `weekly` (last 7 days) and `monthly` (last 30 days), each with `average`, `entries` and `days` (one row per day: `date`, `average`, `entries`, `moving_average` = average of the last 3 days with data; `null` where there is no data); `previous_month` (the 30 days before) and `comparison` = `{difference, trend}` with `trend` = `up`, `down` or `same`.
+
+### Doctors for patients
+`GET /api/doctors?specialization=psych` lists **approved doctors only**, each as `{id, first_name, last_name, specialization, phone, clinic_url, bio, photo_url}` (to call or open the clinic link). Date of birth, status and documents are never shown. `GET /api/doctors/{id}` returns one (404 if not approved).
+
+### Admin dashboard
+- `GET /api/admin/stats`: `patients`, `doctors {active, pending, rejected}`, `posts`, `articles`, `audios`.
+- Review a doctor: `GET /api/admin/doctors?status=pending`, open the file with `GET /api/admin/doctors/{id}` (it has links to the ID card and certificate), view each image with `GET /api/admin/doctors/{id}/documents/id_card` or `.../certificate` (private files, admin only).
+- Decide: approve or reject with `POST` **or** `PATCH` on `/api/admin/doctors/{id}/approve` and `/reject`. Rejecting logs the doctor out at once. `DELETE /api/admin/doctors/{id}` and `DELETE /api/admin/patients/{id}` delete an account with all its data.
+
+### Articles
+Patients read articles with `GET /api/articles?category_id=`. The articles are collected automatically: the command `php artisan articles:fetch` reads the RSS feeds in `ARTICLE_FEEDS` every day, skips links already saved, and puts each article in the categories (anxiety, sleep, depression) whose keywords it contains. The admin can still add articles by hand.
+
+### A doctor who is not active
+A doctor can use the API only while `status = active`. If the admin rejects a doctor, or the doctor changes the specialization, the old token is refused with `403 {"message": "...", "status": "pending|rejected"}`.
